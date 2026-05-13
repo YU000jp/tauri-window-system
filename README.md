@@ -33,19 +33,11 @@ The codebase is split into three layers:
 
 ```rust
 fn main() {
-  let app = tauri::Builder::default()
+  tauri::Builder::default()
     .plugin(tauri_plugin_os::init())
     .plugin(tauri_plugin_window_system::init())
-    .build(tauri::generate_context!())
-    .expect("error while building Tauri application");
-
-  app.run(|app_handle, event| {
-    if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
-      if let Err(err) = app_handle.state::<tauri_plugin_window_system::WindowRegistry>().flush() {
-        eprintln!("window-system: host exit flush failed: {err}");
-      }
-    }
-  });
+    .run(tauri::generate_context!())
+    .expect("error while running Tauri application");
 }
 ```
 
@@ -63,14 +55,14 @@ fn main() {
 Window geometry is stored at `app_data_dir/window-system/windows.json`.
 Closing a window does not delete the saved geometry, so reopened windows restore their last known size and position.
 Windows are created hidden, restored, and then shown to avoid startup flash on desktop platforms.
-Repeated move/resize updates are coalesced, and the store performs an explicit flush on app exit with a Drop fallback.
+Repeated move/resize updates are coalesced, and the store keeps a Drop fallback for the final flush.
 
 ### Parent-Child Windows
 
 - `parent` in `open_window` must refer to an existing window label
 - the plugin also binds the child to the native parent/owner relationship through Tauri
 - `close_window` closes child windows first
-- native close actions (`CloseRequested`) are intercepted with `preventClose()` on the first request and then routed through the same teardown path as `close_window`
+- native close actions (`CloseRequested`) are intercepted with `prevent_close()` on the first request and then routed through the same teardown path as `close_window`
 - self-parenting is rejected
 
 ## TypeScript API
@@ -146,8 +138,6 @@ Sends an event to a target window. `payload` must be JSON-serializable.
 - `actions`: right-side actions
 - `footer`: lower supporting area
 
-`header` is no longer supported. Use `title`, `meta`, `actions`, and `footer`.
-
 ## Capabilities and Permissions
 
 Tauri 2 requires plugin commands to be enabled through capabilities.
@@ -169,8 +159,9 @@ Tauri 2 requires plugin commands to be enabled through capabilities.
 `examples/solid-host` is the minimal validation app for:
 
 - titlebar / actions / footer layout
+- window state transitions and inline error handling
 - `openWindow` / `closeWindow` / `emitToWindow`
-- registry listing
+- registry listing with parent, child count, and geometry summary
 - Windows WebView2 startup and close behavior
 
 ## Development
@@ -195,5 +186,6 @@ pnpm -r build
 - `WindowGeometry` currently uses outer position / outer size for persistence
 - Saved geometry survives normal close/reopen cycles
 - Identical geometry updates are ignored to reduce lock and flush pressure
+- The UI example treats the plugin registry as the source of truth for its summary cards
 - `emitToWindow` payloads must be serializable values
 - The UI wrapper does not depend on the plugin core

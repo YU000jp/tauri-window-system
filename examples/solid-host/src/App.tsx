@@ -25,23 +25,36 @@ export default function App() {
   const windowCount = createMemo(() => windows().length);
 
   // Keep registry-derived facts in one memo so the summary and cards stay in sync.
-  const windowRows = createMemo<WindowViewModel[]>(() => {
+  const registryView = createMemo(() => {
     const list = windows();
     const labels = new Set(list.map((window) => window.label));
+    const childCounts = new Map<string, number>();
 
-    return list.map((window) => {
-      const childCount = list.filter((candidate) => candidate.parent === window.label).length;
+    for (const window of list) {
+      if (window.parent) {
+        childCounts.set(window.parent, (childCounts.get(window.parent) ?? 0) + 1);
+      }
+    }
+
+    let orphanCount = 0;
+    const rows: WindowViewModel[] = list.map((window) => {
       const orphan = window.parent ? !labels.has(window.parent) : false;
+      if (orphan) {
+        orphanCount += 1;
+      }
 
       return {
         ...window,
-        childCount,
+        childCount: childCounts.get(window.label) ?? 0,
         orphan,
       };
     });
+
+    return { rows, orphanCount };
   });
 
-  const orphanCount = createMemo(() => windowRows().filter((window) => window.orphan).length);
+  const windowRows = createMemo(() => registryView().rows);
+  const orphanCount = createMemo(() => registryView().orphanCount);
 
   const statusSummary = createMemo(() => {
     const base =

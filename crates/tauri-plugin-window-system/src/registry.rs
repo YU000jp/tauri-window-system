@@ -33,6 +33,7 @@ struct WindowStateSnapshot {
 #[derive(Default)]
 struct WindowRegistryState {
     windows: HashMap<String, WindowDescriptor>,
+    children: HashMap<String, HashSet<String>>,
     reserved: HashSet<String>,
     closing: HashSet<String>,
 }
@@ -235,7 +236,7 @@ impl WindowRegistry {
             return Err("window reservation not found".to_string());
         }
 
-        state.windows.insert(descriptor.label.clone(), descriptor);
+        state.update_window(descriptor);
         Ok(())
     }
 
@@ -245,7 +246,7 @@ impl WindowRegistry {
             .state
             .lock()
             .map_err(|_| "window registry lock poisoned".to_string())?;
-        state.windows.insert(descriptor.label.clone(), descriptor);
+        state.update_window(descriptor);
         Ok(())
     }
 
@@ -255,7 +256,7 @@ impl WindowRegistry {
             .state
             .lock()
             .map_err(|_| "window registry lock poisoned".to_string())?;
-        Ok(state.windows.remove(label))
+        Ok(state.remove_window(label))
     }
 
     pub fn get(&self, label: &str) -> Result<Option<WindowDescriptor>, String> {
@@ -278,18 +279,34 @@ impl WindowRegistry {
         Ok(list)
     }
 
-    pub fn children_of(&self, parent: &str) -> Result<Vec<WindowDescriptor>, String> {
+    // Close cascade only needs labels, so keep this path minimal and index-backed.
+    pub fn child_labels_of(&self, parent: &str) -> Result<Vec<String>, String> {
         let state = self
             .inner
             .state
             .lock()
             .map_err(|_| "window registry lock poisoned".to_string())?;
-        let mut list: Vec<_> = state
-            .windows
-            .values()
-            .filter(|descriptor| descriptor.parent.as_deref() == Some(parent))
-            .cloned()
+        let mut labels: Vec<_> = state
+            .children
+            .get(parent)
+            .into_iter()
+            .flat_map(|children| children.iter().cloned())
             .collect();
+        labels.sort();
+        Ok(labels)
+    }
+
+    // Display and diagnostics want full descriptors, so expand labels only here.
+    pub fn children_of(&self, parent: &str) -> Result<Vec<WindowDescriptor>, String> {
+        let labels = self.child_labels_of(parent)?;
+        let mut list = Vec::with_capacity(labels.len());
+
+        for label in labels {
+            if let Some(descriptor) = self.get(&label)? {
+                list.push(descriptor);
+            }
+        }
+
         list.sort_by(|left, right| left.label.cmp(&right.label));
         Ok(list)
     }
@@ -309,14 +326,15 @@ impl WindowRegistry {
             .lock()
             .map_err(|_| "window registry lock poisoned".to_string())?;
 
-        if let Some(descriptor) = state.windows.get_mut(label) {
-            if descriptor.geometry.as_ref() == Some(&geometry) {
-                return Ok(());
-            }
+        let Some(descriptor) = state.windows.get_mut(label) else {
+            return Ok(());
+        };
 
-            descriptor.geometry = Some(geometry.clone());
+        if descriptor.geometry.as_ref() == Some(&geometry) {
+            return Ok(());
         }
 
+        descriptor.geometry = Some(geometry.clone());
         drop(state);
         self.inner.state_store.remember(label, geometry)
     }
@@ -348,6 +366,49 @@ impl WindowRegistry {
     fn finish_closing(&self, label: &str) {
         if let Ok(mut state) = self.inner.state.lock() {
             state.closing.remove(label);
+        }
+    }
+}
+
+impl WindowRegistryState {
+    fn update_window(&mut self, descriptor: WindowDescriptor) {
+        let label = descriptor.label.clone();
+        let parent = descriptor.parent.clone();
+
+        if let Some(previous) = self.windows.insert(label.clone(), descriptor) {
+            self.detach_child(&previous.label, previous.parent.as_deref());
+        }
+
+        self.attach_child(&label, parent.as_deref());
+    }
+
+    fn remove_window(&mut self, label: &str) -> Option<WindowDescriptor> {
+        let descriptor = self.windows.remove(label)?;
+        self.detach_child(&descriptor.label, descriptor.parent.as_deref());
+        Some(descriptor)
+    }
+
+    fn attach_child(&mut self, label: &str, parent: Option<&str>) {
+        let Some(parent) = parent else {
+            return;
+        };
+
+        self.children
+            .entry(parent.to_string())
+            .or_default()
+            .insert(label.to_string());
+    }
+
+    fn detach_child(&mut self, label: &str, parent: Option<&str>) {
+        let Some(parent) = parent else {
+            return;
+        };
+
+        if let Some(children) = self.children.get_mut(parent) {
+            children.remove(label);
+            if children.is_empty() {
+                self.children.remove(parent);
+            }
         }
     }
 }
@@ -545,6 +606,80 @@ mod tests {
 
         assert_eq!(registry.list().unwrap().len(), 2);
         assert_eq!(registry.children_of("main").unwrap().len(), 1);
+        assert_eq!(registry.child_labels_of("main").unwrap(), vec!["child".to_string()]);
+    }
+
+    #[test]
+    fn update_reindexes_parent_relationships() {
+        let registry = WindowRegistry::new(WindowStateStore::new(unique_temp_path("reindex")));
+        registry
+            .insert(WindowDescriptor {
+                label: "main-a".into(),
+                url: "main-a.html".into(),
+                parent: None,
+                title: None,
+                geometry: None,
+            })
+            .expect("main-a should insert");
+        registry
+            .insert(WindowDescriptor {
+                label: "main-b".into(),
+                url: "main-b.html".into(),
+                parent: None,
+                title: None,
+                geometry: None,
+            })
+            .expect("main-b should insert");
+        registry
+            .insert(WindowDescriptor {
+                label: "child".into(),
+                url: "child.html".into(),
+                parent: Some("main-a".into()),
+                title: None,
+                geometry: None,
+            })
+            .expect("child should insert");
+
+        registry
+            .insert(WindowDescriptor {
+                label: "child".into(),
+                url: "child.html".into(),
+                parent: Some("main-b".into()),
+                title: None,
+                geometry: None,
+            })
+            .expect("child should reinsert with new parent");
+
+        assert!(registry.child_labels_of("main-a").unwrap().is_empty());
+        assert_eq!(registry.child_labels_of("main-b").unwrap(), vec!["child".to_string()]);
+    }
+
+    #[test]
+    fn remove_updates_child_index() {
+        let registry = WindowRegistry::new(WindowStateStore::new(unique_temp_path("children")));
+        registry
+            .insert(WindowDescriptor {
+                label: "main".into(),
+                url: "index.html".into(),
+                parent: None,
+                title: None,
+                geometry: None,
+            })
+            .expect("main should insert");
+        registry
+            .insert(WindowDescriptor {
+                label: "child".into(),
+                url: "child.html".into(),
+                parent: Some("main".into()),
+                title: None,
+                geometry: None,
+            })
+            .expect("child should insert");
+
+        registry.remove("child").expect("child should remove");
+
+        assert!(registry.child_labels_of("main").unwrap().is_empty());
+        assert!(registry.children_of("main").unwrap().is_empty());
     }
 
     #[test]

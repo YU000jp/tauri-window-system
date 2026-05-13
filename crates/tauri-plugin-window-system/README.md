@@ -16,24 +16,18 @@ Tauri 2 plugin for multi-window lifecycle management.
 - Size and position persistence
 - Parent-child close chaining
 - Window event routing
+- `child_labels_of` for close-oriented child traversal
+- `children_of` for display/diagnostics-oriented descriptor traversal
 
 ## Minimal Usage
 
 ```rust
 fn main() {
-  let app = tauri::Builder::default()
+  tauri::Builder::default()
     .plugin(tauri_plugin_os::init())
     .plugin(tauri_plugin_window_system::init())
-    .build(tauri::generate_context!())
-    .expect("error while building Tauri application");
-
-  app.run(|app_handle, event| {
-    if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
-      if let Err(err) = app_handle.state::<tauri_plugin_window_system::WindowRegistry>().flush() {
-        eprintln!("window-system: host exit flush failed: {err}");
-      }
-    }
-  });
+    .run(tauri::generate_context!())
+    .expect("error while running Tauri application");
 }
 ```
 
@@ -65,7 +59,8 @@ pub struct OpenWindowRequest {
 - saved geometry is preserved across close/reopen cycles
 - windows are created hidden and shown after geometry restoration to reduce startup flash
 - identical geometry updates are skipped so move/resize storms do not thrash the registry or persistence layer
-- the plugin flushes persisted geometry on app exit and also keeps a Drop fallback
+- geometry persistence uses coalesced writes during normal operation
+- the plugin keeps a Drop fallback for the final geometry flush
 
 ## Native Parent Handling
 
@@ -76,6 +71,8 @@ pub struct OpenWindowRequest {
 ## Persistence
 
 Saved to `app_data_dir/window-system/windows.json`.
+The store is updated from move/resize events, but identical values are ignored so repeated notifications do not trigger extra writes.
+The plugin relies on a Drop fallback for the final flush so the latest geometry is durably written before shutdown.
 
 ## Permissions
 

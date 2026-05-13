@@ -86,11 +86,11 @@ pub async fn close_window_tree<R: Runtime>(
                     guard,
                 });
 
-                let mut children = registry.children_of(&label)?;
+                let mut children = registry.child_labels_of(&label)?;
                 children.reverse();
                 for child in children {
                     stack.push(Frame::Enter {
-                        label: child.label,
+                        label: child,
                         already_marked: false,
                     });
                 }

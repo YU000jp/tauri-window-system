@@ -4,7 +4,7 @@ mod lifecycle;
 mod registry;
 
 use tauri::plugin::{Builder, TauriPlugin};
-use tauri::{Manager, RunEvent, Runtime};
+use tauri::{Manager, Runtime};
 
 pub use registry::{WindowDescriptor, WindowGeometry, WindowRegistry, WindowStateStore};
 
@@ -19,13 +19,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             // window-event hooks share a single source of truth.
             app.manage(registry);
             Ok(())
-        })
-        .on_event(|app, event| {
-            if matches!(event, RunEvent::ExitRequested { .. }) {
-                if let Err(err) = app.state::<WindowRegistry>().flush() {
-                    eprintln!("window-system: exit flush failed: {err}");
-                }
-            }
         })
         .on_drop(|app| {
             if let Err(err) = app.state::<WindowRegistry>().flush() {
