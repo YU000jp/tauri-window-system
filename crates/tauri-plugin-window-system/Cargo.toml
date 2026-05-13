@@ -1,0 +1,20 @@
+[package]
+name = "tauri-plugin-window-system"
+version = "0.1.0"
+edition = "2021"
+links = "tauri-plugin-window-system"
+license = "MIT OR Apache-2.0"
+description = "Tauri plugin for multi-window registry, lifecycle, and routing."
+
+[lib]
+name = "tauri_plugin_window_system"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dpi = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2" }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

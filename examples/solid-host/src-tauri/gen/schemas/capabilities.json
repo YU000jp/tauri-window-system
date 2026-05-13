@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Capability for the Solid host example","local":true,"windows":["main"],"permissions":["core:default","os:default","window-system:default"]}}

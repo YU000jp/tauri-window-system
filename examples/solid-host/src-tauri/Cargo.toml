@@ -1,0 +1,13 @@
+[package]
+name = "solid-host"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = "2"
+
+[dependencies]
+serde_json = "1"
+tauri = { version = "2" }
+tauri-plugin-os = "2"
+tauri-plugin-window-system = { path = "../../../crates/tauri-plugin-window-system" }

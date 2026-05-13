@@ -1,0 +1,11 @@
+"$schema" = "../schemas/schema.json"
+
+[default]
+description = "Allow the window-system plugin commands"
+permissions = [
+  "allow-open-window",
+  "allow-close-window",
+  "allow-list-windows",
+  "allow-emit-to-window"
+]
+
