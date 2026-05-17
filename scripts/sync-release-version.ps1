@@ -18,8 +18,6 @@ function Sync-VersionField {
     [Parameter(Mandatory = $true)]
     [string]$Pattern,
     [Parameter(Mandatory = $true)]
-    [string]$Replacement,
-    [Parameter(Mandatory = $true)]
     [string]$FieldName,
     [Parameter(Mandatory = $true)]
     [string]$TargetVersion
@@ -32,13 +30,18 @@ function Sync-VersionField {
     throw "Could not find a version field in $Path"
   }
 
-  $currentVersion = $versionMatch.Groups[1].Value
+  $currentVersion = $versionMatch.Groups[2].Value
 
   if ($currentVersion -eq $TargetVersion) {
     return
   }
 
-  $updated = [regex]::Replace($content, $Pattern, $Replacement, 1)
+  # Rebuild the matched line directly so replacement syntax cannot misread SemVer digits.
+  $updated = $content.Substring(0, $versionMatch.Index) +
+    $versionMatch.Groups[1].Value +
+    $TargetVersion +
+    $versionMatch.Groups[3].Value +
+    $content.Substring($versionMatch.Index + $versionMatch.Length)
 
   if ($updated -eq $content) {
     throw "Could not update $FieldName version in $Path"
@@ -50,20 +53,17 @@ function Sync-VersionField {
 Sync-VersionField `
   -Path (Join-Path $repoRoot "crates/tauri-plugin-window-system/Cargo.toml") `
   -Pattern '(?m)^(\s*version\s*=\s*")([^"]+)("\s*)$' `
-  -Replacement ('${1}' + $Version + '${3}') `
   -FieldName "Cargo" `
   -TargetVersion $Version
 
 Sync-VersionField `
   -Path (Join-Path $repoRoot "packages/tauri-plugin-window-system-api/package.json") `
   -Pattern '(?m)^(\s*"version"\s*:\s*")([^"]+)(",\s*)$' `
-  -Replacement ('${1}' + $Version + '${3}') `
   -FieldName "package" `
   -TargetVersion $Version
 
 Sync-VersionField `
   -Path (Join-Path $repoRoot "packages/tauri-window-ui/package.json") `
   -Pattern '(?m)^(\s*"version"\s*:\s*")([^"]+)(",\s*)$' `
-  -Replacement ('${1}' + $Version + '${3}') `
   -FieldName "package" `
   -TargetVersion $Version
