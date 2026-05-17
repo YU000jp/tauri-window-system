@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-window-system"
-version = "0.1.0"
+$10.1.0"
 edition = "2021"
 links = "tauri-plugin-window-system"
 license = "MIT OR Apache-2.0"

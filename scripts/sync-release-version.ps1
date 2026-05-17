@@ -49,21 +49,21 @@ function Sync-VersionField {
 
 Sync-VersionField `
   -Path (Join-Path $repoRoot "crates/tauri-plugin-window-system/Cargo.toml") `
-  -Pattern '(?m)^version = "([^"]+)"$' `
-  -Replacement "version = `"$Version`"" `
+  -Pattern '(?m)^(\s*version\s*=\s*")([^"]+)("\s*)$' `
+  -Replacement ('${1}' + $Version + '${3}') `
   -FieldName "Cargo" `
   -TargetVersion $Version
 
 Sync-VersionField `
   -Path (Join-Path $repoRoot "packages/tauri-plugin-window-system-api/package.json") `
-  -Pattern '(?m)^  "version": "([^"]+)",$' `
-  -Replacement "  `"version`": `"$Version`"," `
+  -Pattern '(?m)^(\s*"version"\s*:\s*")([^"]+)(",\s*)$' `
+  -Replacement ('${1}' + $Version + '${3}') `
   -FieldName "package" `
   -TargetVersion $Version
 
 Sync-VersionField `
   -Path (Join-Path $repoRoot "packages/tauri-window-ui/package.json") `
-  -Pattern '(?m)^  "version": "([^"]+)",$' `
-  -Replacement "  `"version`": `"$Version`"," `
+  -Pattern '(?m)^(\s*"version"\s*:\s*")([^"]+)(",\s*)$' `
+  -Replacement ('${1}' + $Version + '${3}') `
   -FieldName "package" `
   -TargetVersion $Version
