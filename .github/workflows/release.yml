@@ -84,6 +84,15 @@ jobs:
             throw "Crate version mismatch in crates/tauri-plugin-window-system/Cargo.toml: expected $version, found $($cratePackage.version)"
           }
 
+      - name: Verify crates.io token
+        shell: pwsh
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CARGO_REGISTRY_TOKEN)) {
+            throw "CARGO_REGISTRY_TOKEN is missing or empty. Set it as a repository secret before publishing."
+          }
+
       - name: Typecheck workspace
         run: pnpm -r typecheck
 
@@ -110,6 +119,7 @@ jobs:
       - name: Publish Rust crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        # crates.io requires the publishing account to have a verified email address.
         # Cargo rechecks package contents at publish time and may see generated permission files as dirty.
         run: cargo publish -p tauri-plugin-window-system --locked --allow-dirty
 

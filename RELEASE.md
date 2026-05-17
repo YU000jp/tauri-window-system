@@ -40,6 +40,9 @@ Use this guide when publishing a new release.
 
 ## Required Secrets
 
-- `CARGO_REGISTRY_TOKEN`
+- `CARGO_REGISTRY_TOKEN` from a crates.io account with a verified email address
 - `NPM_TOKEN`
 
+## crates.io Publish Requirement
+
+crates.io requires the publishing account to have a verified email address. If `cargo publish` fails with a 400 response about email verification, verify the email on the account that owns `CARGO_REGISTRY_TOKEN` and then regenerate the token.
