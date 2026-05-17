@@ -1,0 +1,9 @@
+index.ts
+src/
+webview-src/
+tsconfig.json
+.npmignore
+.gitignore
+.github/
+node_modules/
+dist/**/*.map

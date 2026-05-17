@@ -97,7 +97,7 @@ The plugin crate exposes the commands listed above and keeps `child_labels_of` a
 Install:
 
 ```bash
-pnpm add tauri-plugin-window-system-api
+npm install tauri-plugin-window-system-api
 ```
 
 Common exports:
@@ -129,7 +129,7 @@ import {
 Install:
 
 ```bash
-pnpm add tauri-window-ui
+npm install tauri-window-ui
 ```
 
 ```tsx

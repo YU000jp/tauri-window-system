@@ -5,7 +5,7 @@ Solid window wrapper for Tauri applications.
 ## Install
 
 ```bash
-pnpm add tauri-window-ui
+npm install tauri-window-ui
 ```
 
 ## Export
@@ -38,3 +38,4 @@ pnpm add tauri-window-ui
 - Styling is owned by the host app; this package only provides the structural shell.
 - Dragging is handled directly through the Tauri window API
 - The published entrypoint resolves from `dist/index.js`
+- This package is published as a public npm package from the repository release workflow
