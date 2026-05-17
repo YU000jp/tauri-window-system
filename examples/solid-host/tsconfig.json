@@ -3,6 +3,12 @@
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "tauri-plugin-window-system-api": ["../../packages/tauri-plugin-window-system-api/index.ts"],
+      "tauri-window-ui": ["../../packages/tauri-window-ui/index.ts"]
+    },
     "strict": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
@@ -11,4 +17,3 @@
   },
   "include": ["src/**/*", "vite.config.ts"]
 }
-
