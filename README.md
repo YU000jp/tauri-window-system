@@ -2,6 +2,8 @@
 
 Tauri 2 plugin for building a multi-window foundation.
 
+<img width="1608" height="1504" alt="image" src="https://github.com/user-attachments/assets/4e906634-c28d-43aa-9e98-9dc2dde23bf4" />
+
 ## Packages
 
 - `crates/tauri-plugin-window-system`: Rust plugin crate for lifecycle, registry, persistence, and routing
