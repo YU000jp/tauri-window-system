@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify-and-release:
+  verify:
     runs-on: windows-latest
 
     steps:
@@ -44,11 +44,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Configure git identity
+      - name: Sync release version
         shell: pwsh
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          .\scripts\sync-release-version.ps1 -Version "${{ inputs.version }}"
 
       - name: Validate release version
         shell: pwsh
@@ -116,12 +115,66 @@ jobs:
         working-directory: packages/tauri-window-ui
         run: npm pack --dry-run --json
 
+      - name: Upload npm dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-dist
+          if-no-files-found: error
+          path: |
+            packages/tauri-plugin-window-system-api/dist
+            packages/tauri-window-ui/dist
+
+  publish-rust:
+    needs: verify
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Sync release version
+        shell: pwsh
+        run: |
+          .\scripts\sync-release-version.ps1 -Version "${{ inputs.version }}"
+
       - name: Publish Rust crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         # crates.io requires the publishing account to have a verified email address.
         # Cargo rechecks package contents at publish time and may see generated permission files as dirty.
         run: cargo publish -p tauri-plugin-window-system --locked --allow-dirty
+
+  publish-npm:
+    needs: verify
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Sync release version
+        shell: pwsh
+        run: |
+          .\scripts\sync-release-version.ps1 -Version "${{ inputs.version }}"
+
+      - name: Download npm dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-dist
+          path: .
 
       - name: Verify npm token
         shell: pwsh
@@ -136,17 +189,31 @@ jobs:
         working-directory: packages/tauri-plugin-window-system-api
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish
+        run: npm publish --ignore-scripts
 
       - name: Publish npm UI package
         working-directory: packages/tauri-window-ui
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish
+        run: npm publish --ignore-scripts
+
+  tag-and-release:
+    needs:
+      - publish-rust
+      - publish-npm
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Create release tag
         shell: pwsh
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           $tag = "v${{ inputs.version }}"
           git tag -a $tag -m "Release $tag"
           git push origin $tag
