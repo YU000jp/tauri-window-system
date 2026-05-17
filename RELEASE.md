@@ -9,6 +9,8 @@ Use this guide when publishing a new release.
 - [ ] Update `packages/tauri-plugin-window-system-api/package.json`
 - [ ] Update `packages/tauri-window-ui/package.json`
 - [ ] Push the version bump to `main`
+- [ ] Confirm `CARGO_REGISTRY_TOKEN` is set as a repository secret from a crates.io account with a verified email
+- [ ] Confirm `NPM_TOKEN` is set as a repository secret
 - [ ] Open GitHub Actions and run `Release`
 - [ ] Enter the version without the `v` prefix, for example `0.1.0`
 - [ ] Watch the workflow finish publish, tag creation, and GitHub Release creation

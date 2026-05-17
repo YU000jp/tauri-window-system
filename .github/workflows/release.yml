@@ -123,6 +123,15 @@ jobs:
         # Cargo rechecks package contents at publish time and may see generated permission files as dirty.
         run: cargo publish -p tauri-plugin-window-system --locked --allow-dirty
 
+      - name: Verify npm token
+        shell: pwsh
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NODE_AUTH_TOKEN)) {
+            throw "NPM_TOKEN is missing or empty. Set it as a repository secret before publishing."
+          }
+
       - name: Publish npm API package
         working-directory: packages/tauri-plugin-window-system-api
         env:
