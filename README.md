@@ -191,6 +191,10 @@ pnpm -r typecheck
 pnpm -r build
 ```
 
+## Release Workflow
+
+Release instructions are in [RELEASE.md](./RELEASE.md).
+
 ## Notes
 
 - `WindowGeometry` currently uses outer position and outer size for persistence
