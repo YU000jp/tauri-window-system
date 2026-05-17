@@ -18,6 +18,7 @@ Use this guide when publishing a new release.
    - Do not include the `v` prefix in the workflow input.
 2. Open GitHub Actions and run the `Release` workflow manually.
 3. Enter the version, for example `0.1.0`.
+   - This workflow input is the source of truth for the release.
 4. Review the workflow logs.
    - The workflow checks version consistency first.
    - If the check passes, it runs `verify`, `publish-rust`, `publish-npm`, and `tag-and-release` in order.
@@ -26,6 +27,7 @@ Use this guide when publishing a new release.
 
 - Verifies the crate and package versions match the input
 - Synchronizes the crate and package versions to the workflow input before validation and publish
+- The sync helper is idempotent and can be rerun safely when files already match
 - Checks the workspace with typecheck, build, and Rust tests
 - Verifies the packaged tarball contents
 - Uploads npm `dist` artifacts from `verify` and restores them in `publish-npm`

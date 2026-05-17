@@ -11,42 +11,59 @@ if ($Version -notmatch $semverPattern) {
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 
-function Update-CargoVersion {
+function Sync-VersionField {
   param(
     [Parameter(Mandatory = $true)]
     [string]$Path,
     [Parameter(Mandatory = $true)]
-    [string]$TargetVersion
-  )
-
-  $content = Get-Content $Path -Raw
-  $updated = $content -replace '(?m)^version = "([^"]+)"$', "version = `"$TargetVersion`""
-
-  if ($updated -eq $content) {
-    throw "Could not update Cargo version in $Path"
-  }
-
-  Set-Content -Path $Path -Value $updated
-}
-
-function Update-PackageVersion {
-  param(
+    [string]$Pattern,
     [Parameter(Mandatory = $true)]
-    [string]$Path,
+    [string]$Replacement,
+    [Parameter(Mandatory = $true)]
+    [string]$FieldName,
     [Parameter(Mandatory = $true)]
     [string]$TargetVersion
   )
 
-  $content = Get-Content $Path -Raw
-  $updated = $content -replace '(?m)^  "version": "([^"]+)",$', "  `"version`": `"$TargetVersion`","
+  $content = Get-Content -LiteralPath $Path -Raw
+  $versionMatch = [regex]::Match($content, $Pattern)
 
-  if ($updated -eq $content) {
-    throw "Could not update package version in $Path"
+  if (-not $versionMatch.Success) {
+    throw "Could not find a version field in $Path"
   }
 
-  Set-Content -Path $Path -Value $updated
+  $currentVersion = $versionMatch.Groups[1].Value
+
+  if ($currentVersion -eq $TargetVersion) {
+    return
+  }
+
+  $updated = [regex]::Replace($content, $Pattern, $Replacement, 1)
+
+  if ($updated -eq $content) {
+    throw "Could not update $FieldName version in $Path"
+  }
+
+  [System.IO.File]::WriteAllText($Path, $updated, [System.Text.UTF8Encoding]::new($false))
 }
 
-Update-CargoVersion -Path (Join-Path $repoRoot "crates/tauri-plugin-window-system/Cargo.toml") -TargetVersion $Version
-Update-PackageVersion -Path (Join-Path $repoRoot "packages/tauri-plugin-window-system-api/package.json") -TargetVersion $Version
-Update-PackageVersion -Path (Join-Path $repoRoot "packages/tauri-window-ui/package.json") -TargetVersion $Version
+Sync-VersionField `
+  -Path (Join-Path $repoRoot "crates/tauri-plugin-window-system/Cargo.toml") `
+  -Pattern '(?m)^version = "([^"]+)"$' `
+  -Replacement "version = `"$Version`"" `
+  -FieldName "Cargo" `
+  -TargetVersion $Version
+
+Sync-VersionField `
+  -Path (Join-Path $repoRoot "packages/tauri-plugin-window-system-api/package.json") `
+  -Pattern '(?m)^  "version": "([^"]+)",$' `
+  -Replacement "  `"version`": `"$Version`"," `
+  -FieldName "package" `
+  -TargetVersion $Version
+
+Sync-VersionField `
+  -Path (Join-Path $repoRoot "packages/tauri-window-ui/package.json") `
+  -Pattern '(?m)^  "version": "([^"]+)",$' `
+  -Replacement "  `"version`": `"$Version`"," `
+  -FieldName "package" `
+  -TargetVersion $Version
