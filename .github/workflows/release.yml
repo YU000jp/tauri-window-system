@@ -110,7 +110,8 @@ jobs:
       - name: Publish Rust crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p tauri-plugin-window-system --locked
+        # Cargo rechecks package contents at publish time and may see generated permission files as dirty.
+        run: cargo publish -p tauri-plugin-window-system --locked --allow-dirty
 
       - name: Publish npm API package
         working-directory: packages/tauri-plugin-window-system-api
