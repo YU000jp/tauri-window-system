@@ -11,7 +11,7 @@ import {
   type WindowMessageTopicMap,
   type WindowMessageTopicName,
   type SendWindowMessageRequest,
-} from "./index";
+} from "./index.js";
 
 export interface WindowMessageFilter<TTopics extends WindowMessageTopicMap = WindowMessageTopicMap> {
   topic?: WindowMessageTopicName<TTopics>;

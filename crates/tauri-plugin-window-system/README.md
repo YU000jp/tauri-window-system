@@ -2,6 +2,12 @@
 
 Tauri 2 plugin for multi-window lifecycle management.
 
+## Publish Scope
+
+- This crate is the plugin core published to crates.io.
+- The validation host in `examples/solid-host` stays internal and is not part of the published crate.
+- The TypeScript API and Solid wrapper are published separately as npm packages.
+
 ## Public Contract
 
 The plugin is the source of truth for window lifecycle, registry state, and message routing.

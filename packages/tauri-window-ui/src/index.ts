@@ -1,2 +1,1 @@
-export * from "./WindowFrame";
-
+export * from "./WindowFrame.jsx";

@@ -12,8 +12,8 @@
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-os": "^2.3.2",
     "solid-js": "^1.9.13",
-    "tauri-plugin-window-system-api": "workspace:*",
-    "tauri-window-ui": "workspace:*"
+    "tauri-plugin-window-system-api": "^0.1.0",
+    "tauri-window-ui": "^0.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",

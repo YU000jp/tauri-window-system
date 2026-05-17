@@ -5,6 +5,12 @@ edition = "2021"
 links = "tauri-plugin-window-system"
 license = "MIT OR Apache-2.0"
 description = "Tauri plugin for multi-window registry, lifecycle, and routing."
+repository = "https://github.com/YU000jp/tauri-window-system"
+homepage = "https://github.com/YU000jp/tauri-window-system"
+documentation = "https://docs.rs/tauri-plugin-window-system"
+readme = "README.md"
+keywords = ["tauri", "plugin", "window", "multi-window"]
+categories = ["api-bindings", "gui"]
 
 [lib]
 name = "tauri_plugin_window_system"

@@ -2,6 +2,13 @@
 
 Tauri 2 plugin for building a multi-window foundation.
 
+## Packages
+
+- `crates/tauri-plugin-window-system`: Rust plugin crate for lifecycle, registry, persistence, and routing
+- `tauri-plugin-window-system-api`: TypeScript API package for frontend integration
+- `tauri-window-ui`: Solid structural wrapper for window chrome
+- `examples/solid-host`: internal validation host only; not part of the published distribution
+
 It covers the core pieces you usually need to ship a windowed desktop app:
 
 - create and close windows with a stable `openWindow()` / `closeWindow()` flow
@@ -25,7 +32,7 @@ The UI package owns structure only, not styling or business logic.
 - `packages/tauri-window-ui`
   - Solid window shell components
 - `examples/solid-host`
-  - Minimal host app for validation
+  - Minimal host app for validation only
 
 ## What This Plugin Covers
 
@@ -119,6 +126,12 @@ import {
 
 `packages/tauri-window-ui` provides the structural shell only.
 
+Install:
+
+```bash
+pnpm add tauri-window-ui
+```
+
 ```tsx
 <WindowFrame
   title={<span>Main</span>}
@@ -150,6 +163,8 @@ Dragging is handled through the Tauri window API.
 - direct and broadcast window messages
 - startup restore and close behavior
 - stale-first frontend caching while the plugin remains the registry source of truth
+
+This app is intentionally kept internal to the workspace. It is not a published package and should not be treated as a consumer entrypoint.
 
 Run it with:
 

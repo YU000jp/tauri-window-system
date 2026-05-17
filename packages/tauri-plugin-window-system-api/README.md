@@ -2,6 +2,12 @@
 
 TypeScript API for the Tauri Window System plugin.
 
+## Install
+
+```bash
+pnpm add tauri-plugin-window-system-api
+```
+
 ## Public API
 
 These exports are the stable frontend contract.
@@ -84,6 +90,7 @@ await openWindow({
 
 - This is a thin `invoke` wrapper
 - The types mirror the Rust-side contract
+- The package entrypoint resolves from `dist/index.js` in published builds
 - `openWindow()` trims blank `label`, `parent`, `title`, and `url` inputs on the Rust side before the window is created
 - Registry-change listeners resync frontend state from the plugin snapshot
 - `restoreWindows()` reopens tracked windows during startup sync

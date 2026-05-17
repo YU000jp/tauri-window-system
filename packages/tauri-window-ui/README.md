@@ -2,6 +2,12 @@
 
 Solid window wrapper for Tauri applications.
 
+## Install
+
+```bash
+pnpm add tauri-window-ui
+```
+
 ## Export
 
 - `WindowFrame`
@@ -31,3 +37,4 @@ Solid window wrapper for Tauri applications.
 - `header` is not supported
 - Styling is owned by the host app; this package only provides the structural shell.
 - Dragging is handled directly through the Tauri window API
+- The published entrypoint resolves from `dist/index.js`

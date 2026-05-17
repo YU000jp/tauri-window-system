@@ -1,2 +1,1 @@
-export * from "../webview-src/index";
-
+export * from "../webview-src/index.js";
