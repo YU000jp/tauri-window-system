@@ -68,7 +68,7 @@ jobs:
           foreach ($path in $packageJsons) {
             $pkg = Get-Content $path -Raw | ConvertFrom-Json
             if ($pkg.version -ne $version) {
-              throw "Package version mismatch in $path: expected $version, found $($pkg.version)"
+              throw "Package version mismatch in ${path}: expected $version, found $($pkg.version)"
             }
           }
 
