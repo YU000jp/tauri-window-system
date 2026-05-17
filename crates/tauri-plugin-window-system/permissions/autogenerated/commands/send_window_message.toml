@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-send-window-message"
+description = "Enables the send_window_message command without any pre-configured scope."
+commands.allow = ["send_window_message"]
+
+[[permission]]
+identifier = "deny-send-window-message"
+description = "Denies the send_window_message command without any pre-configured scope."
+commands.deny = ["send_window_message"]

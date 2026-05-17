@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "main",
+  "description": "Capability for the Solid host main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "window-system:allow-open-window",
+    "window-system:allow-close-window",
+    "window-system:allow-list-windows",
+    "window-system:allow-restore-windows",
+    "window-system:allow-send-window-message",
+    "window-system:allow-broadcast-window-message"
+  ]
+}

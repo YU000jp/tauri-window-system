@@ -3,6 +3,7 @@ const COMMANDS: &[&str] = &[
     "close_window",
     "list_windows",
     "emit_to_window",
+    "restore_windows",
 ];
 
 fn main() {

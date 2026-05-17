@@ -8,6 +8,37 @@ use std::time::Duration;
 
 const GEOMETRY_FLUSH_DEBOUNCE: Duration = Duration::from_millis(80);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowSystemErrorKind {
+    InvalidLabel,
+    WindowAlreadyExists,
+    WindowCannotBeItsOwnParent,
+    ParentWindowNotFound,
+    WindowNotFound,
+    WindowReservationNotFound,
+    WindowRegistryLockPoisoned,
+    WindowStateStoreLockPoisoned,
+}
+
+impl WindowSystemErrorKind {
+    pub fn as_code(self) -> &'static str {
+        match self {
+            Self::InvalidLabel => "invalid-label",
+            Self::WindowAlreadyExists => "window-already-exists",
+            Self::WindowCannotBeItsOwnParent => "window-cannot-be-its-own-parent",
+            Self::ParentWindowNotFound => "parent-window-not-found",
+            Self::WindowNotFound => "window-not-found",
+            Self::WindowReservationNotFound => "window-reservation-not-found",
+            Self::WindowRegistryLockPoisoned => "window-registry-lock-poisoned",
+            Self::WindowStateStoreLockPoisoned => "window-state-store-lock-poisoned",
+        }
+    }
+}
+
+pub fn window_system_error(kind: WindowSystemErrorKind, message: impl Into<String>) -> String {
+    format!("{}: {}", kind.as_code(), message.into())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WindowGeometry {
     pub x: f64,
@@ -28,6 +59,7 @@ pub struct WindowDescriptor {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct WindowStateSnapshot {
     windows: HashMap<String, WindowGeometry>,
+    tracked_windows: HashMap<String, WindowDescriptor>,
 }
 
 #[derive(Default)]
@@ -73,12 +105,36 @@ impl WindowStateStore {
             .and_then(|snapshot| snapshot.windows.get(label).cloned())
     }
 
-    pub fn remember(&self, label: &str, geometry: WindowGeometry) -> Result<(), String> {
-        let mut snapshot = self
-            .inner
+    pub fn restore_tracked_windows(&self) -> Vec<WindowDescriptor> {
+        self.inner
             .snapshot
             .lock()
-            .map_err(|_| "window state store lock poisoned".to_string())?;
+            .ok()
+            .map(|snapshot| {
+                let mut windows: Vec<_> = snapshot
+                    .tracked_windows
+                    .values()
+                    .cloned()
+                    .map(|mut descriptor| {
+                        if descriptor.geometry.is_none() {
+                            descriptor.geometry = snapshot.windows.get(&descriptor.label).cloned();
+                        }
+                        descriptor
+                    })
+                    .collect();
+                windows.sort_by(|left, right| left.label.cmp(&right.label));
+                windows
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn remember(&self, label: &str, geometry: WindowGeometry) -> Result<(), String> {
+        let mut snapshot = self.inner.snapshot.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowStateStoreLockPoisoned,
+                "window state store lock poisoned",
+            )
+        })?;
         if snapshot.windows.get(label) == Some(&geometry) {
             return Ok(());
         }
@@ -89,12 +145,33 @@ impl WindowStateStore {
         Ok(())
     }
 
+    pub fn remember_window(&self, descriptor: WindowDescriptor) -> Result<(), String> {
+        let mut snapshot = self.inner.snapshot.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowStateStoreLockPoisoned,
+                "window state store lock poisoned",
+            )
+        })?;
+
+        if snapshot.tracked_windows.get(&descriptor.label) == Some(&descriptor) {
+            return Ok(());
+        }
+
+        snapshot
+            .tracked_windows
+            .insert(descriptor.label.clone(), descriptor);
+        drop(snapshot);
+        self.schedule_flush();
+        Ok(())
+    }
+
     pub fn forget(&self, label: &str) -> Result<(), String> {
-        let mut snapshot = self
-            .inner
-            .snapshot
-            .lock()
-            .map_err(|_| "window state store lock poisoned".to_string())?;
+        let mut snapshot = self.inner.snapshot.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowStateStoreLockPoisoned,
+                "window state store lock poisoned",
+            )
+        })?;
         if snapshot.windows.remove(label).is_none() {
             return Ok(());
         }
@@ -102,6 +179,46 @@ impl WindowStateStore {
         drop(snapshot);
         self.schedule_flush();
         Ok(())
+    }
+
+    pub fn forget_window(&self, label: &str) -> Result<(), String> {
+        let mut snapshot = self.inner.snapshot.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowStateStoreLockPoisoned,
+                "window state store lock poisoned",
+            )
+        })?;
+
+        if snapshot.tracked_windows.remove(label).is_some() {
+            drop(snapshot);
+            self.schedule_flush();
+        }
+
+        Ok(())
+    }
+
+    /// Removes every persisted record for a window label.
+    ///
+    /// Use this only for startup cleanup of stale records. Normal close flows keep
+    /// geometry so windows can reopen with their last known size and position.
+    pub fn purge_window(&self, label: &str) -> Result<bool, String> {
+        let mut snapshot = self.inner.snapshot.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowStateStoreLockPoisoned,
+                "window state store lock poisoned",
+            )
+        })?;
+
+        let removed_geometry = snapshot.windows.remove(label).is_some();
+        let removed_descriptor = snapshot.tracked_windows.remove(label).is_some();
+
+        if !removed_geometry && !removed_descriptor {
+            return Ok(false);
+        }
+
+        drop(snapshot);
+        self.schedule_flush();
+        Ok(true)
     }
 
     fn schedule_flush(&self) {
@@ -118,7 +235,12 @@ impl WindowStateStoreInner {
         let snapshot = self
             .snapshot
             .lock()
-            .map_err(|_| "window state store lock poisoned".to_string())?
+            .map_err(|_| {
+                window_system_error(
+                    WindowSystemErrorKind::WindowStateStoreLockPoisoned,
+                    "window state store lock poisoned",
+                )
+            })?
             .clone();
 
         persist_snapshot(&self.path, &snapshot)
@@ -189,30 +311,43 @@ impl WindowRegistry {
         label: &str,
         parent: Option<&str>,
     ) -> Result<WindowReservation, String> {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
+        let mut state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
 
         if label.trim().is_empty() {
-            return Err("label is required".to_string());
+            return Err(window_system_error(
+                WindowSystemErrorKind::InvalidLabel,
+                "label is required",
+            ));
         }
 
         if state.windows.contains_key(label)
             || state.reserved.contains(label)
             || state.closing.contains(label)
         {
-            return Err("window already exists".to_string());
+            return Err(window_system_error(
+                WindowSystemErrorKind::WindowAlreadyExists,
+                "window already exists",
+            ));
         }
 
         if let Some(parent) = parent {
             if parent == label {
-                return Err("window cannot be its own parent".to_string());
+                return Err(window_system_error(
+                    WindowSystemErrorKind::WindowCannotBeItsOwnParent,
+                    "window cannot be its own parent",
+                ));
             }
 
             if !state.windows.contains_key(parent) || state.closing.contains(parent) {
-                return Err("parent window not found".to_string());
+                return Err(window_system_error(
+                    WindowSystemErrorKind::ParentWindowNotFound,
+                    format!("parent window not found: {parent}"),
+                ));
             }
         }
 
@@ -226,54 +361,90 @@ impl WindowRegistry {
     }
 
     pub fn insert_reserved(&self, descriptor: WindowDescriptor) -> Result<(), String> {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
+        let persisted_descriptor = descriptor.clone();
+        let mut state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
 
         if !state.reserved.remove(&descriptor.label) {
-            return Err("window reservation not found".to_string());
+            return Err(window_system_error(
+                WindowSystemErrorKind::WindowReservationNotFound,
+                "window reservation not found",
+            ));
         }
 
         state.update_window(descriptor);
+        drop(state);
+        self.inner
+            .state_store
+            .remember_window(persisted_descriptor)?;
         Ok(())
+    }
+
+    /// Upserts a live window snapshot during bootstrap or runtime resync.
+    ///
+    /// Repeated syncs are expected, so identical descriptors short-circuit without
+    /// touching the persisted snapshot again.
+    pub fn upsert_live_window(&self, descriptor: WindowDescriptor) -> Result<bool, String> {
+        let persisted_descriptor = descriptor.clone();
+        let mut state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
+
+        if state.windows.get(&descriptor.label) == Some(&descriptor) {
+            return Ok(false);
+        }
+
+        state.update_window(descriptor);
+        drop(state);
+        self.inner
+            .state_store
+            .remember_window(persisted_descriptor)?;
+        Ok(true)
     }
 
     pub fn insert(&self, descriptor: WindowDescriptor) -> Result<(), String> {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
-        state.update_window(descriptor);
-        Ok(())
+        self.upsert_live_window(descriptor).map(|_| ())
     }
 
     pub fn remove(&self, label: &str) -> Result<Option<WindowDescriptor>, String> {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
-        Ok(state.remove_window(label))
+        let mut state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
+        let removed = state.remove_window(label);
+        drop(state);
+        if removed.is_some() {
+            self.inner.state_store.forget_window(label)?;
+        }
+        Ok(removed)
     }
 
     pub fn get(&self, label: &str) -> Result<Option<WindowDescriptor>, String> {
-        let state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
+        let state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
         Ok(state.windows.get(label).cloned())
     }
 
     pub fn list(&self) -> Result<Vec<WindowDescriptor>, String> {
-        let state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
+        let state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
         let mut list: Vec<_> = state.windows.values().cloned().collect();
         list.sort_by(|left, right| left.label.cmp(&right.label));
         Ok(list)
@@ -281,11 +452,12 @@ impl WindowRegistry {
 
     // Close cascade only needs labels, so keep this path minimal and index-backed.
     pub fn child_labels_of(&self, parent: &str) -> Result<Vec<String>, String> {
-        let state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
+        let state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
         let mut labels: Vec<_> = state
             .children
             .get(parent)
@@ -319,32 +491,53 @@ impl WindowRegistry {
         self.inner.state_store.flush()
     }
 
-    pub fn remember_geometry(&self, label: &str, geometry: WindowGeometry) -> Result<(), String> {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
+    pub fn restore_tracked_windows(&self) -> Vec<WindowDescriptor> {
+        self.inner.state_store.restore_tracked_windows()
+    }
 
-        let Some(descriptor) = state.windows.get_mut(label) else {
-            return Ok(());
+    /// Removes all persisted state for a label.
+    ///
+    /// This is reserved for startup cleanup paths where a tracked window can no longer
+    /// be restored and should not survive into the next launch.
+    pub fn purge_persisted_window(&self, label: &str) -> Result<bool, String> {
+        self.inner.state_store.purge_window(label)
+    }
+
+    pub fn remember_geometry(&self, label: &str, geometry: WindowGeometry) -> Result<bool, String> {
+        let persisted_descriptor = {
+            let mut state = self.inner.state.lock().map_err(|_| {
+                window_system_error(
+                    WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                    "window registry lock poisoned",
+                )
+            })?;
+
+            let Some(descriptor) = state.windows.get_mut(label) else {
+                return Ok(false);
+            };
+
+            if descriptor.geometry.as_ref() == Some(&geometry) {
+                return Ok(false);
+            }
+
+            descriptor.geometry = Some(geometry.clone());
+            descriptor.clone()
         };
 
-        if descriptor.geometry.as_ref() == Some(&geometry) {
-            return Ok(());
-        }
-
-        descriptor.geometry = Some(geometry.clone());
-        drop(state);
-        self.inner.state_store.remember(label, geometry)
+        self.inner.state_store.remember(label, geometry)?;
+        self.inner
+            .state_store
+            .remember_window(persisted_descriptor)?;
+        Ok(true)
     }
 
     pub fn begin_closing(&self, label: &str) -> Result<Option<ClosingGuard>, String> {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| "window registry lock poisoned".to_string())?;
+        let mut state = self.inner.state.lock().map_err(|_| {
+            window_system_error(
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window registry lock poisoned",
+            )
+        })?;
 
         if state.closing.contains(label) {
             return Ok(None);
@@ -431,10 +624,7 @@ fn persist_snapshot(path: &PathBuf, snapshot: &WindowStateSnapshot) -> Result<()
     fs::write(path, raw).map_err(|err| err.to_string())
 }
 
-fn spawn_geometry_flusher(
-    inner: Weak<WindowStateStoreInner>,
-    flush_receiver: mpsc::Receiver<()>,
-) {
+fn spawn_geometry_flusher(inner: Weak<WindowStateStoreInner>, flush_receiver: mpsc::Receiver<()>) {
     thread::spawn(move || {
         while flush_receiver.recv().is_ok() {
             loop {
@@ -499,6 +689,107 @@ mod tests {
     }
 
     #[test]
+    fn remember_and_restore_tracked_window() {
+        let path = unique_temp_path("tracked-window");
+        let store = WindowStateStore::new(path.clone());
+        let descriptor = WindowDescriptor {
+            label: "main".into(),
+            url: "index.html".into(),
+            parent: None,
+            title: Some("Main".into()),
+            geometry: Some(WindowGeometry {
+                x: 10.0,
+                y: 20.0,
+                width: 300.0,
+                height: 200.0,
+            }),
+        };
+
+        store
+            .remember_window(descriptor.clone())
+            .expect("tracked window should persist");
+        store.flush().expect("snapshot should flush");
+
+        let restored = WindowStateStore::new(path).restore_tracked_windows();
+        assert_eq!(restored, vec![descriptor]);
+    }
+
+    #[test]
+    fn remember_geometry_reports_changes() {
+        let registry =
+            WindowRegistry::new(WindowStateStore::new(unique_temp_path("geometry-change")));
+        let geometry = WindowGeometry {
+            x: 10.0,
+            y: 20.0,
+            width: 300.0,
+            height: 200.0,
+        };
+
+        registry
+            .insert(WindowDescriptor {
+                label: "main".into(),
+                url: "index.html".into(),
+                parent: None,
+                title: None,
+                geometry: None,
+            })
+            .expect("main should insert");
+
+        assert!(registry
+            .remember_geometry("main", geometry.clone())
+            .expect("geometry should be recorded"));
+        assert!(!registry
+            .remember_geometry("main", geometry)
+            .expect("duplicate geometry should be ignored"));
+    }
+
+    #[test]
+    fn error_messages_are_prefixed_with_codes() {
+        let message = window_system_error(
+            WindowSystemErrorKind::WindowAlreadyExists,
+            "window already exists",
+        );
+
+        assert!(message.starts_with("window-already-exists: "));
+    }
+
+    #[test]
+    fn error_kind_codes_are_stable() {
+        let cases = [
+            (WindowSystemErrorKind::InvalidLabel, "invalid-label"),
+            (
+                WindowSystemErrorKind::WindowAlreadyExists,
+                "window-already-exists",
+            ),
+            (
+                WindowSystemErrorKind::WindowCannotBeItsOwnParent,
+                "window-cannot-be-its-own-parent",
+            ),
+            (
+                WindowSystemErrorKind::ParentWindowNotFound,
+                "parent-window-not-found",
+            ),
+            (WindowSystemErrorKind::WindowNotFound, "window-not-found"),
+            (
+                WindowSystemErrorKind::WindowReservationNotFound,
+                "window-reservation-not-found",
+            ),
+            (
+                WindowSystemErrorKind::WindowRegistryLockPoisoned,
+                "window-registry-lock-poisoned",
+            ),
+            (
+                WindowSystemErrorKind::WindowStateStoreLockPoisoned,
+                "window-state-store-lock-poisoned",
+            ),
+        ];
+
+        for (kind, code) in cases {
+            assert_eq!(kind.as_code(), code);
+        }
+    }
+
+    #[test]
     fn remember_coalesces_to_latest_persisted_geometry() {
         let path = unique_temp_path("debounce");
         let store = WindowStateStore::new(path.clone());
@@ -522,7 +813,12 @@ mod tests {
             .remember("main", latest.clone())
             .expect("latest geometry should queue");
 
-        std::thread::sleep(std::time::Duration::from_millis(150));
+        for _ in 0..20 {
+            if path.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
 
         let raw = std::fs::read_to_string(path).expect("debounced snapshot should be written");
         let snapshot: WindowStateSnapshot =
@@ -606,7 +902,10 @@ mod tests {
 
         assert_eq!(registry.list().unwrap().len(), 2);
         assert_eq!(registry.children_of("main").unwrap().len(), 1);
-        assert_eq!(registry.child_labels_of("main").unwrap(), vec!["child".to_string()]);
+        assert_eq!(
+            registry.child_labels_of("main").unwrap(),
+            vec!["child".to_string()]
+        );
     }
 
     #[test]
@@ -651,7 +950,29 @@ mod tests {
             .expect("child should reinsert with new parent");
 
         assert!(registry.child_labels_of("main-a").unwrap().is_empty());
-        assert_eq!(registry.child_labels_of("main-b").unwrap(), vec!["child".to_string()]);
+        assert_eq!(
+            registry.child_labels_of("main-b").unwrap(),
+            vec!["child".to_string()]
+        );
+    }
+
+    #[test]
+    fn upsert_live_window_is_idempotent_for_identical_descriptors() {
+        let registry = WindowRegistry::new(WindowStateStore::new(unique_temp_path("upsert")));
+        let descriptor = WindowDescriptor {
+            label: "main".into(),
+            url: "index.html".into(),
+            parent: None,
+            title: Some("Main".into()),
+            geometry: None,
+        };
+
+        assert!(registry
+            .upsert_live_window(descriptor.clone())
+            .expect("first upsert should insert"));
+        assert!(!registry
+            .upsert_live_window(descriptor)
+            .expect("identical upsert should be ignored"));
     }
 
     #[test]
@@ -683,16 +1004,53 @@ mod tests {
     }
 
     #[test]
+    fn purge_window_removes_tracked_window_and_geometry() {
+        let path = unique_temp_path("purge");
+        let store = WindowStateStore::new(path.clone());
+        let geometry = WindowGeometry {
+            x: 1.0,
+            y: 2.0,
+            width: 3.0,
+            height: 4.0,
+        };
+        let descriptor = WindowDescriptor {
+            label: "child".into(),
+            url: "child.html".into(),
+            parent: Some("main".into()),
+            title: Some("Child".into()),
+            geometry: Some(geometry.clone()),
+        };
+
+        store
+            .remember("child", geometry.clone())
+            .expect("geometry should persist");
+        store
+            .remember_window(descriptor)
+            .expect("tracked window should persist");
+        store.flush().expect("snapshot should flush");
+
+        assert!(store.purge_window("child").expect("purge should work"));
+        store.flush().expect("purged snapshot should flush");
+
+        let restored_store = WindowStateStore::new(path);
+        assert!(restored_store.restore_tracked_windows().is_empty());
+        assert_eq!(restored_store.restore("child"), None);
+    }
+
+    #[test]
     fn reservation_rejects_duplicate_labels() {
         let registry = WindowRegistry::new(WindowStateStore::new(unique_temp_path("reserve")));
-        let _reservation = registry.reserve_window("main", None).expect("first reserve");
+        let _reservation = registry
+            .reserve_window("main", None)
+            .expect("first reserve");
 
         assert!(registry.reserve_window("main", None).is_err());
     }
 
     #[test]
     fn reservation_rejects_missing_parent() {
-        let registry = WindowRegistry::new(WindowStateStore::new(unique_temp_path("parent-missing")));
+        let registry =
+            WindowRegistry::new(WindowStateStore::new(unique_temp_path("parent-missing")));
 
         assert!(registry.reserve_window("child", Some("main")).is_err());
     }
@@ -706,7 +1064,8 @@ mod tests {
 
     #[test]
     fn reservation_rejects_closing_parent() {
-        let registry = WindowRegistry::new(WindowStateStore::new(unique_temp_path("closing-parent")));
+        let registry =
+            WindowRegistry::new(WindowStateStore::new(unique_temp_path("closing-parent")));
         registry
             .insert(WindowDescriptor {
                 label: "main".into(),
@@ -733,9 +1092,15 @@ mod tests {
             .expect("lock should succeed")
             .expect("first closing mark");
 
-        assert!(registry.begin_closing("main").expect("lock should succeed").is_none());
+        assert!(registry
+            .begin_closing("main")
+            .expect("lock should succeed")
+            .is_none());
 
         drop(guard);
-        assert!(registry.begin_closing("main").expect("lock should succeed").is_some());
+        assert!(registry
+            .begin_closing("main")
+            .expect("lock should succeed")
+            .is_some());
     }
 }

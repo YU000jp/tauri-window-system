@@ -1,12 +1,10 @@
-import type { JSX } from "solid-js";
-import { type WindowControlsProps, type WindowTitlebarProps } from "@tauri-controls/solid";
+import { type JSX } from "solid-js";
 export interface WindowFrameProps {
     title?: JSX.Element;
     meta?: JSX.Element;
     actions?: JSX.Element;
     footer?: JSX.Element;
-    titlebarProps?: Omit<WindowTitlebarProps, "controlsOrder" | "windowControlsProps">;
-    windowControlsProps?: WindowControlsProps;
+    titlebarProps?: JSX.HTMLAttributes<HTMLDivElement>;
     children: JSX.Element;
 }
 export declare function WindowFrame(props: WindowFrameProps): JSX.Element;

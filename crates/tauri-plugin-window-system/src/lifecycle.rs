@@ -1,5 +1,12 @@
-use crate::registry::{ClosingGuard, WindowRegistry};
-use tauri::{AppHandle, CloseRequestApi, Manager, Runtime, WebviewWindowBuilder};
+use crate::events::{emit_registry_changed, RegistryChangeKind};
+use crate::registry::{
+    window_system_error, ClosingGuard, WindowGeometry, WindowRegistry, WindowSystemErrorKind,
+};
+use dpi::{PhysicalPosition, PhysicalSize};
+use tauri::{
+    AppHandle, CloseRequestApi, Manager, Position, Runtime, Size, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
+};
 
 pub fn attach_native_parent<'a, R: Runtime, M: Manager<R>>(
     handle: &'a M,
@@ -10,13 +17,18 @@ pub fn attach_native_parent<'a, R: Runtime, M: Manager<R>>(
         return Ok(builder);
     };
 
-    let parent_window = handle
-        .get_webview_window(parent_label)
-        .ok_or_else(|| format!("parent window not found: {parent_label}"))?;
+    let parent_window = handle.get_webview_window(parent_label).ok_or_else(|| {
+        window_system_error(
+            WindowSystemErrorKind::ParentWindowNotFound,
+            format!("parent window not found: {parent_label}"),
+        )
+    })?;
 
     // Delegate the OS-specific owner/child wiring to Tauri so z-order and teardown
     // behavior stay aligned with the native platform semantics.
-    builder.parent(&parent_window).map_err(|err| err.to_string())
+    builder
+        .parent(&parent_window)
+        .map_err(|err| err.to_string())
 }
 
 pub fn handle_close_requested<R: Runtime>(
@@ -46,6 +58,69 @@ pub fn handle_close_requested<R: Runtime>(
     }
 }
 
+pub fn capture_window_geometry<R: Runtime>(
+    window: &WebviewWindow<R>,
+) -> Result<WindowGeometry, String> {
+    let position = window.outer_position().map_err(|err| err.to_string())?;
+    let size = window.outer_size().map_err(|err| err.to_string())?;
+
+    Ok(WindowGeometry {
+        x: position.x as f64,
+        y: position.y as f64,
+        width: size.width as f64,
+        height: size.height as f64,
+    })
+}
+
+pub fn apply_window_geometry<R: Runtime>(
+    window: &WebviewWindow<R>,
+    geometry: &WindowGeometry,
+) -> Result<(), String> {
+    window
+        .set_position(Position::Physical(PhysicalPosition {
+            x: geometry.x as i32,
+            y: geometry.y as i32,
+        }))
+        .map_err(|err| err.to_string())?;
+    window
+        .set_size(Size::Physical(PhysicalSize {
+            width: geometry.width as u32,
+            height: geometry.height as u32,
+        }))
+        .map_err(|err| err.to_string())
+}
+
+pub fn attach_window_event_handlers<R: Runtime>(
+    handle: &AppHandle<R>,
+    registry: &WindowRegistry,
+    window: &WebviewWindow<R>,
+    label: &str,
+) {
+    let label = label.to_string();
+    let registry_for_events = registry.clone();
+    let handle_for_events = handle.clone();
+    let window_for_events = window.clone();
+
+    window.on_window_event(move |event| match event {
+        WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+            if let Ok(geometry) = capture_window_geometry(&window_for_events) {
+                if let Ok(true) = registry_for_events.remember_geometry(&label, geometry) {
+                    let _ = emit_registry_changed(
+                        &handle_for_events,
+                        &registry_for_events,
+                        RegistryChangeKind::GeometryChanged,
+                        &label,
+                    );
+                }
+            }
+        }
+        WindowEvent::CloseRequested { api, .. } => {
+            handle_close_requested(&handle_for_events, &registry_for_events, &label, api);
+        }
+        _ => {}
+    });
+}
+
 pub async fn close_window_tree<R: Runtime>(
     handle: &AppHandle<R>,
     registry: &WindowRegistry,
@@ -53,7 +128,10 @@ pub async fn close_window_tree<R: Runtime>(
     already_marked: bool,
 ) -> Result<(), String> {
     enum Frame {
-        Enter { label: String, already_marked: bool },
+        Enter {
+            label: String,
+            already_marked: bool,
+        },
         Exit {
             label: String,
             guard: Option<ClosingGuard>,
@@ -115,6 +193,7 @@ pub async fn close_window_tree<R: Runtime>(
     }
 
     if teardown_errors.is_empty() {
+        emit_registry_changed(handle, registry, RegistryChangeKind::Closed, label)?;
         Ok(())
     } else {
         Err(teardown_errors.join("; "))

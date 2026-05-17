@@ -6,6 +6,8 @@ permissions = [
   "allow-open-window",
   "allow-close-window",
   "allow-list-windows",
-  "allow-emit-to-window"
+  "allow-emit-to-window",
+  "allow-restore-windows",
+  "allow-send-window-message",
+  "allow-broadcast-window-message"
 ]
-

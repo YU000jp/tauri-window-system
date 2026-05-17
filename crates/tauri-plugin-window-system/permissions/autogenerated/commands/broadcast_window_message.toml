@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-broadcast-window-message"
+description = "Enables the broadcast_window_message command without any pre-configured scope."
+commands.allow = ["broadcast_window_message"]
+
+[[permission]]
+identifier = "deny-broadcast-window-message"
+description = "Denies the broadcast_window_message command without any pre-configured scope."
+commands.deny = ["broadcast_window_message"]

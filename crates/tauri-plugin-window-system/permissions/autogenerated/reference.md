@@ -8,6 +8,9 @@ Allow the window-system plugin commands
 - `allow-close-window`
 - `allow-list-windows`
 - `allow-emit-to-window`
+- `allow-restore-windows`
+- `allow-send-window-message`
+- `allow-broadcast-window-message`
 
 ## Permission Table
 
@@ -17,6 +20,32 @@ Allow the window-system plugin commands
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`window-system:allow-broadcast-window-message`
+
+</td>
+<td>
+
+Enables the broadcast_window_message command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`window-system:deny-broadcast-window-message`
+
+</td>
+<td>
+
+Denies the broadcast_window_message command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>
@@ -118,6 +147,58 @@ Enables the open_window command without any pre-configured scope.
 <td>
 
 Denies the open_window command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`window-system:allow-restore-windows`
+
+</td>
+<td>
+
+Enables the restore_windows command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`window-system:deny-restore-windows`
+
+</td>
+<td>
+
+Denies the restore_windows command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`window-system:allow-send-window-message`
+
+</td>
+<td>
+
+Enables the send_window_message command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`window-system:deny-send-window-message`
+
+</td>
+<td>
+
+Denies the send_window_message command without any pre-configured scope.
 
 </td>
 </tr>

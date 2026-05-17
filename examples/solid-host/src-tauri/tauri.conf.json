@@ -21,8 +21,5 @@
   "bundle": {
     "active": false
   },
-  "plugins": {
-    "window-system": {}
-  }
+  "plugins": {}
 }
-

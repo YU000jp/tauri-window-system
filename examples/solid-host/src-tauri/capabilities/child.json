@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "child",
+  "description": "Capability for Solid host child windows",
+  "windows": ["child-*"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "window-system:allow-send-window-message"
+  ]
+}

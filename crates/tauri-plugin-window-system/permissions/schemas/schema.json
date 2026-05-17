@@ -295,6 +295,18 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the broadcast_window_message command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-broadcast-window-message",
+          "markdownDescription": "Enables the broadcast_window_message command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the broadcast_window_message command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-broadcast-window-message",
+          "markdownDescription": "Denies the broadcast_window_message command without any pre-configured scope."
+        },
+        {
           "description": "Enables the close_window command without any pre-configured scope.",
           "type": "string",
           "const": "allow-close-window",
@@ -343,10 +355,34 @@
           "markdownDescription": "Denies the open_window command without any pre-configured scope."
         },
         {
-          "description": "Allow the window-system plugin commands\n#### This default permission set includes:\n\n- `allow-open-window`\n- `allow-close-window`\n- `allow-list-windows`\n- `allow-emit-to-window`",
+          "description": "Enables the restore_windows command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-restore-windows",
+          "markdownDescription": "Enables the restore_windows command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the restore_windows command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-restore-windows",
+          "markdownDescription": "Denies the restore_windows command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the send_window_message command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-send-window-message",
+          "markdownDescription": "Enables the send_window_message command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the send_window_message command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-send-window-message",
+          "markdownDescription": "Denies the send_window_message command without any pre-configured scope."
+        },
+        {
+          "description": "Allow the window-system plugin commands\n#### This default permission set includes:\n\n- `allow-open-window`\n- `allow-close-window`\n- `allow-list-windows`\n- `allow-emit-to-window`\n- `allow-restore-windows`\n- `allow-send-window-message`\n- `allow-broadcast-window-message`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Allow the window-system plugin commands\n#### This default permission set includes:\n\n- `allow-open-window`\n- `allow-close-window`\n- `allow-list-windows`\n- `allow-emit-to-window`"
+          "markdownDescription": "Allow the window-system plugin commands\n#### This default permission set includes:\n\n- `allow-open-window`\n- `allow-close-window`\n- `allow-list-windows`\n- `allow-emit-to-window`\n- `allow-restore-windows`\n- `allow-send-window-message`\n- `allow-broadcast-window-message`"
         }
       ]
     }

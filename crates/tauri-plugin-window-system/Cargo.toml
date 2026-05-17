@@ -10,11 +10,16 @@ description = "Tauri plugin for multi-window registry, lifecycle, and routing."
 name = "tauri_plugin_window_system"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = []
+window-timings = ["dep:tracing"]
+
 [dependencies]
 dpi = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2" }
+tracing = { version = "0.1", optional = true }
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = ["build"] }

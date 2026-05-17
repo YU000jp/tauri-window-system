@@ -29,5 +29,5 @@ Solid window wrapper for Tauri applications.
 ## Notes
 
 - `header` is not supported
-- Internally uses `tauri-controls`
-
+- Styling is owned by the host app; this package only provides the structural shell.
+- Dragging is handled directly through the Tauri window API
