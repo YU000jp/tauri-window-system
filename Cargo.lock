@@ -3217,7 +3217,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tauri",
- "tauri-plugin",
+ "tauri-utils",
  "tracing",
 ]
 

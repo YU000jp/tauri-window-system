@@ -28,4 +28,4 @@ tauri = { version = "2" }
 tracing = { version = "0.1", optional = true }
 
 [build-dependencies]
-tauri-plugin = { version = "2", features = ["build"] }
+tauri-utils = { version = "2" }
