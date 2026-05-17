@@ -26,7 +26,7 @@ Use this guide when publishing a new release.
 ## What The Workflow Does
 
 - Verifies the crate and package versions match the input
-- Synchronizes the crate and package versions to the workflow input before validation and publish
+- Synchronizes the crate, `Cargo.lock`, and package versions to the workflow input before validation and publish
 - The sync helper is idempotent and can be rerun safely when files already match
 - Checks the workspace with typecheck, build, and Rust tests
 - Verifies the packaged tarball contents

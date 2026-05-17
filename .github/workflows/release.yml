@@ -83,6 +83,17 @@ jobs:
             throw "Crate version mismatch in crates/tauri-plugin-window-system/Cargo.toml: expected $version, found $($cratePackage.version)"
           }
 
+          $lockContent = Get-Content "Cargo.lock" -Raw
+          $lockMatch = [regex]::Match($lockContent, '(?ms)\[\[package\]\]\r?\nname = "tauri-plugin-window-system"\r?\nversion = "([^"]+)"')
+
+          if (-not $lockMatch.Success) {
+            throw "Could not read crate version from Cargo.lock"
+          }
+
+          if ($lockMatch.Groups[1].Value -ne $version) {
+            throw "Cargo.lock version mismatch: expected $version, found $($lockMatch.Groups[1].Value)"
+          }
+
       - name: Verify crates.io token
         shell: pwsh
         env:

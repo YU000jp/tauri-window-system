@@ -57,6 +57,12 @@ Sync-VersionField `
   -TargetVersion $Version
 
 Sync-VersionField `
+  -Path (Join-Path $repoRoot "Cargo.lock") `
+  -Pattern '(?ms)(\[\[package\]\]\r?\nname = "tauri-plugin-window-system"\r?\nversion = ")([^"]+)(")' `
+  -FieldName "Cargo.lock" `
+  -TargetVersion $Version
+
+Sync-VersionField `
   -Path (Join-Path $repoRoot "packages/tauri-plugin-window-system-api/package.json") `
   -Pattern '(?m)^(\s*"version"\s*:\s*")([^"]+)(",\s*)$' `
   -FieldName "package" `
