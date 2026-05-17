@@ -10,7 +10,7 @@ Use this guide when publishing a new release.
 - [ ] Update `packages/tauri-window-ui/package.json`
 - [ ] Push the version bump to `main`
 - [ ] Confirm `CARGO_REGISTRY_TOKEN` is set as a repository secret from a crates.io account with a verified email
-- [ ] Confirm `NPM_TOKEN` is set as a repository secret
+- [ ] Confirm `NPM_TOKEN` is set as a repository secret from an npm granular access token with Bypass 2FA enabled
 - [ ] Open GitHub Actions and run `Release`
 - [ ] Enter the version without the `v` prefix, for example `0.1.0`
 - [ ] Watch the workflow finish publish, tag creation, and GitHub Release creation
@@ -43,7 +43,11 @@ Use this guide when publishing a new release.
 ## Required Secrets
 
 - `CARGO_REGISTRY_TOKEN` from a crates.io account with a verified email address
-- `NPM_TOKEN`
+- `NPM_TOKEN` from an npm granular access token with Bypass 2FA enabled
+
+## npm Publish Requirement
+
+npm requires either account-level 2FA or a granular access token with Bypass 2FA enabled for publish operations. For CI, use a granular write token with Bypass 2FA enabled and store it as `NPM_TOKEN`.
 
 ## crates.io Publish Requirement
 
