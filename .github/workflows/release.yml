@@ -72,13 +72,16 @@ jobs:
             }
           }
 
-          $cargoToml = Get-Content "crates/tauri-plugin-window-system/Cargo.toml" -Raw
-          if ($cargoToml -notmatch '(?m)^version = "([^"]+)"$') {
-            throw "Could not read crate version from crates/tauri-plugin-window-system/Cargo.toml"
+          # Read the crate version from cargo metadata instead of parsing Cargo.toml in PowerShell.
+          $cargoMetadata = cargo metadata --no-deps --format-version 1 --manifest-path "crates/tauri-plugin-window-system/Cargo.toml" | ConvertFrom-Json
+          $cratePackage = $cargoMetadata.packages | Where-Object { $_.name -eq "tauri-plugin-window-system" } | Select-Object -First 1
+
+          if (-not $cratePackage) {
+            throw "Could not read crate version from cargo metadata for crates/tauri-plugin-window-system/Cargo.toml"
           }
 
-          if ($Matches[1] -ne $version) {
-            throw "Crate version mismatch in crates/tauri-plugin-window-system/Cargo.toml: expected $version, found $($Matches[1])"
+          if ($cratePackage.version -ne $version) {
+            throw "Crate version mismatch in crates/tauri-plugin-window-system/Cargo.toml: expected $version, found $($cratePackage.version)"
           }
 
       - name: Typecheck workspace
