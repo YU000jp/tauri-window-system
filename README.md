@@ -13,6 +13,12 @@ Tauri 2 plugin for building a multi-window foundation.
 - `tauri-window-ui`: Solid structural wrapper for window chrome
 - `examples/solid-host`: internal validation host only; not part of the published distribution
 
+### Published Packages
+
+- Rust crate: [tauri-plugin-window-system](https://crates.io/crates/tauri-plugin-window-system)
+- npm API: [tauri-plugin-window-system-api](https://www.npmjs.com/package/tauri-plugin-window-system-api)
+- npm UI: [tauri-window-ui](https://www.npmjs.com/package/tauri-window-ui)
+
 It covers the core pieces you usually need to ship a windowed desktop app:
 
 - create and close windows with a stable `openWindow()` / `closeWindow()` flow
@@ -201,6 +207,7 @@ Release instructions are in [RELEASE.md](./RELEASE.md).
 
 ## Notes
 
+- Tauri still has an open request for programmatic monitor assignment in multi-window setups: [tauri-apps/tauri#6394](https://github.com/tauri-apps/tauri/issues/6394) - "assign a window to a specific monitor/display"
 - `WindowGeometry` currently uses outer position and outer size for persistence
 - Windows are created hidden, restored, and then shown to avoid startup flash on desktop platforms
 - `open_window` trims blank inputs before the window is built
